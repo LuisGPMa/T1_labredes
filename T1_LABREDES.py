@@ -22,5 +22,9 @@ def ethernet_head(raw_data):
 while True:
     eth = s.recvfrom(65565)
     parsed_eth = ethernet_head(eth[0])
+    source_mac = 
     print ("Destination MAC:", binascii.hexlify(parsed_eth[0]), " Source MAC:", binascii.hexlify(parsed_eth[1]) ," Type:",binascii.hexlify(parsed_eth[2]))
-
+    if 
+    ipheader = eth[0][14:34]
+    ip_header = struct.unpack("!12s4s4s", ipheader)
+    print ("Source IP:", socket.inet_ntoa(ip_header[1]), " Destination IP:", socket.inet_ntoa(ip_header[2]))
