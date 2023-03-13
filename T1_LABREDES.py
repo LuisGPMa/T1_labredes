@@ -15,6 +15,9 @@ def ethernet_head(raw_data):
  data = raw_data[14:]
  return dest, src, prototype,data
 
+#IPV4 TYPE: 0800
+#IPV6 TYPE: 86DD
+#ARP TYPE: 0806
 
 while True:
     eth = s.recvfrom(65565)
