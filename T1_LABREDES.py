@@ -12,7 +12,7 @@ ARP = '0806'
 ARP_OPCODES = {'0001':'Request', '0002':'Reply'}
 s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
 
-packets_df = pd.DataFrame(columns=['Enlace', 'Rede', 'Transporte', 'Aplicacao', 'Tamanho'])
+packets_df = pd.DataFrame(columns=['Enlace', 'Rede', 'Transporte', 'Aplicacao', 'Tamanho', 'Porta', 'Request_ou_Reply'])
 print(packets_df.head())
 
 def ethernet_header(raw_data):
@@ -49,6 +49,7 @@ while True:
         ip_header = struct.unpack("!12s4s4s", ipheader)
         print ("Source IP:", socket.inet_ntoa(ip_header[1]), " Destination IP:", socket.inet_ntoa(ip_header[2]))
     if ethertype == ARP:
-        print(arp_header(eth[0])[4])
-        packets_df.loc[packets_df.shape[0]] = ['ARP', '', '', '', packet_size]
+        ARP_header = arp_header(eth[0])
+        packets_df.loc[packets_df.shape[0]] = ['ARP', '', '', '', packet_size, '', ARP_OPCODES[ARP_header[4]]]
+        print(ARP_OPCODES[ARP_header[4]])
         
