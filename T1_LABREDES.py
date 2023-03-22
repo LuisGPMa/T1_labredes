@@ -4,13 +4,14 @@ import struct
 import sys
 import pandas as pd
 
-HTTP_PORT = '80'
-HTTPS_PORT = '443'
-DNS_PORT = '53'
-DHCP_PORTS = ['67', '68']
-UDP = '11'
-TCP = '6'
-ICMP = '01'
+HTTP_PORT = 80
+HTTPS_PORT = 443
+DNS_PORT = 53
+DHCP_PORTS = [67, 68]
+UDP = 17
+TCP = 6
+ICMP = 1
+ICMPV6 = 58
 IPV4 = '0800'
 IPV6 = '86dd'
 ARP = '0806'
@@ -19,7 +20,6 @@ ICMP_TYPES = {'00':'Reply', '08':'Reply', '03': 'Dest. Unreachable'}
 s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
 
 packets_df = pd.DataFrame(columns=['Enlace', 'Rede', 'Transporte', 'Aplicacao', 'Tamanho', 'Porta', 'Request_ou_Reply'])
-print(packets_df.head())
 
 def ethernet_header(raw_data):
     #IPV4 TYPE: 0800
@@ -56,38 +56,72 @@ while True:
     if ethertype == IPV4:        
         rede = 'IPv4'
         ipheader = eth[0][14:34]
-        transporte = binascii.hexlify(ipheader[9:10]).decode('utf-8')
+        transporte = int(binascii.hexlify(ipheader[9:10]).decode('utf-8'), base=16)
+        protocolo_transporte = ''
         ip_header = struct.unpack("!12s4s4s", ipheader)
-        
-        #print ("Source IP:", socket.inet_ntoa(ip_header[1]), " Destination IP:", socket.inet_ntoa(ip_header[2]))
+        aplicacao = ''
+        dest_port = ''
+        ICMP_req_or_rply = ''
+        # print ("Source IP:", socket.inet_ntoa(ip_header[1]), " Destination IP:", socket.inet_ntoa(ip_header[2]), f'Transport: {transporte}')
         if transporte == ICMP:
+            protocolo_transporte = 'ICMP'
             icmp_header = eth[0][34:38]
             icmp_type = binascii.hexlify(icmp_header[:1]).decode('utf-8')
-            packets_df.loc[packets_df.shape[0]] = [enlace, rede, transporte, '', packet_size, '', ICMP_TYPES[icmp_type]]
+            ICMP_req_or_rply = ICMP_TYPES[icmp_type]
+            
         elif transporte == UDP:
+            protocolo_transporte = 'UDP'
             udp_header = eth[0][34:42]
             src_port = int(binascii.hexlify(udp_header[:2]).decode('utf-8'), base=16)
             dest_port = int(binascii.hexlify(udp_header[2:4]).decode('utf-8'), base=16)
-            aplicacao = ''
             if src_port == DNS_PORT or dest_port == DNS_PORT:
                 aplicacao = 'DNS'
             elif src_port in DHCP_PORTS or dest_port in DHCP_PORTS:
                 aplicacao = 'DHCP'
-            #                                      ['Enlace', 'Rede', 'Transporte', 'Aplicacao', 'Tamanho', 'Porta', 'Request_ou_Reply'] 
-            packets_df.loc[packets_df.shape[0]] = [enlace, rede, transporte, aplicacao, packet_size, dest_port, '']
+            
         elif transporte == TCP:
+            protocolo_transporte = 'TCP'
             tcp_ports = eth[0][34:38]
             src_port = int(binascii.hexlify(tcp_ports[:2]).decode('utf-8'), base=16)
             dest_port = int(binascii.hexlify(tcp_ports[2:4]).decode('utf-8'), base=16)
-            aplicacao = ''
             if src_port == HTTP_PORT or dest_port == HTTP_PORT:
                 aplicacao = 'HTTP'
             elif src_port == HTTPS_PORT or dest_port == HTTPS_PORT:
                 aplicacao = 'HTTPS'
-        packets_df.loc[packets_df.shape[0]] = [enlace, rede, transporte, aplicacao, packet_size, dest_port, '']
-
-
+        packets_df.loc[packets_df.shape[0]] = [enlace, rede, protocolo_transporte, aplicacao, packet_size, dest_port, ICMP_req_or_rply]
+        
+    elif ethertype == IPV6:
+        rede = 'IPV6'
+        hexified = binascii.hexlify(eth[0]).decode('utf-8')
+        ipv6_header = hexified[28:108]
+        transporte = int(binascii.hexlify(ipv6_header[6:7]).decode('utf-8'), base=16)
+        aplicacao = ''
+        print(transporte)
+        print(binascii.hexlify(eth[0]).decode('utf-8'))
+        print(int(binascii.hexlify(eth[0]).decode('utf-8')[60:62], base=16))
+        if transporte == ICMPV6:
+            protocolo_transporte = 'ICMPV6' 
+            # icmp_header = eth[0][34:38]
+            # icmp_type = binascii.hexlify(icmp_header[:1]).decode('utf-8')
+            # ICMP_req_or_rply = ICMP_TYPES[icmp_type]
+        elif transporte == UDP:
+            protocolo_transporte = 'UDP'
+            udp_header = eth[0][94:102]
+            src_port = int(binascii.hexlify(udp_header[:2]).decode('utf-8'), base=16)
+            dest_port = int(binascii.hexlify(udp_header[2:4]).decode('utf-8'), base=16)
+            if src_port == DNS_PORT or dest_port == DNS_PORT:
+                aplicacao = 'DNS'
+            elif src_port in DHCP_PORTS or dest_port in DHCP_PORTS:
+                aplicacao = 'DHCP'
+        elif transporte == TCP:
+            protocolo_transporte = 'TCP'
+            tcp_ports = eth[0][54:58]
+            src_port = int(binascii.hexlify(tcp_ports[:2]).decode('utf-8'), base=16)
+            dest_port = int(binascii.hexlify(tcp_ports[2:4]).decode('utf-8'), base=16)
+            if src_port == HTTP_PORT or dest_port == HTTP_PORT:
+                aplicacao = 'HTTP'
+            elif src_port == HTTPS_PORT or dest_port == HTTPS_PORT:
+                aplicacao = 'HTTPS'
     if ethertype == ARP:
         ARP_header = arp_header(eth[0])
         packets_df.loc[packets_df.shape[0]] = ['ARP', '', '', '', packet_size, '', ARP_OPCODES[ARP_header[4]]]
-        
