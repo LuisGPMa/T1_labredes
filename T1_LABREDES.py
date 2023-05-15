@@ -15,7 +15,7 @@ ICMPV6 = 58
 IPV4 = '0800'
 IPV6 = '86dd'
 ARP = '0806'
-ARP_OPCODES = {'0001':'Request', '0002':'Reply'}
+ARP_OPCODES = {1:'Request', 2:'Reply'}
 ICMP_TYPES = {0:'Reply', 8:'Request'}
 ICMPV6_TYPES = {128:'Request', 129:'Reply'}
 s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
@@ -43,20 +43,21 @@ def display_curr_stats():
     print(f'Tamanho minimo: {min}, Tamanho maximo: {max}, Tamanho medio: {avg}')
     print('Dados do protocolo ARP:')
     format_and_print_reqs_and_replies('ARP', ARP_req_amnt, ARP_rply_amnt, ARP_req_perc, ARP_rply_perc)
-    format_and_print_protocol_stats('IPv4', IPV4_amnt, IPV4_perc)
-    format_and_print_protocol_stats('ICMP', ICMP_amnt, ICMP_perc)
+    format_and_print_protocol_stats_as_df('IPv4', IPV4_amnt, IPV4_perc)
+    format_and_print_protocol_stats_as_df('ICMP', ICMP_amnt, ICMP_perc)
     format_and_print_reqs_and_replies('ICMP', ICMP_req_amnt, ICMP_rply_amnt, ICMP_req_perc, ICMP_rply_perc)
-    format_and_print_protocol_stats('IPv6', IPV6_amnt, IPV6_perc)
-    format_and_print_protocol_stats('ICMPv6', ICMPV6_amnt, ICMPV6_perc)
+    format_and_print_protocol_stats_as_df('IPv6', IPV6_amnt, IPV6_perc)
+    format_and_print_protocol_stats_as_df('ICMPv6', ICMPV6_amnt, ICMPV6_perc)
     format_and_print_reqs_and_replies('ICMPv6', ICMPV6_req_amnt, ICMPV6_rply_amnt, ICMPV6_req_perc, ICMPV6_rply_perc)
-    format_and_print_protocol_stats('UDP', UDP_amnt, UDP_perc)
-    format_and_print_protocol_stats('TCP', TCP_amnt, TCP_perc)
-    print(f'Portas UDP mais acessadas: {portas_UDP_mais_acessadas}')
-    print(f'Portas TCP mais acessadas: {portas_TCP_mais_acessadas}')
-    format_and_print_protocol_stats('HTTP', HTTP_amnt, HTTP_perc)
-    format_and_print_protocol_stats('HTTPS', HTTPS_amnt, HTTPS_perc)
-    format_and_print_protocol_stats('DNS', DNS_amnt, DNS_perc)
-    format_and_print_protocol_stats('DHCP', DHCP_amnt, DHCP_perc)
+    format_and_print_protocol_stats_as_df('UDP', UDP_amnt, UDP_perc)
+    print(f'    Portas UDP mais acessadas: {portas_UDP_mais_acessadas}')
+    format_and_print_protocol_stats_as_df('TCP', TCP_amnt, TCP_perc)
+    print(f'    Portas TCP mais acessadas: {portas_TCP_mais_acessadas}')
+    format_and_print_protocol_stats_as_df('HTTP', HTTP_amnt, HTTP_perc)
+    format_and_print_protocol_stats_as_df('HTTPS', HTTPS_amnt, HTTPS_perc)
+    format_and_print_protocol_stats_as_df('DNS', DNS_amnt, DNS_perc)
+    format_and_print_protocol_stats_as_df('DHCP', DHCP_amnt, DHCP_perc)
+    print(f'Total de pacotes capturados: {packets_df.shape[0]}')
     
     
     
@@ -65,12 +66,16 @@ def format_and_print_protocol_stats(protocol, amnt, perc):
     print(f'Dados do protocolo {protocol}:')
     print(f'    Qtd de pacotes {protocol}: {amnt}, Perc. de pacotes {protocol}: {perc}')
     
+def format_and_print_protocol_stats_as_df(protocol, amnt, perc):
+    newdf = pd.DataFrame([[amnt, str(perc)+'%']], columns=['qtd', 'perc'], index=[protocol])
+    print(newdf)
+
 def format_and_print_reqs_and_replies(protocol, req_amnt, rply_amnt, req_perc, rply_perc):
     print(f'    Qtd de reqs {protocol}: {req_amnt}, Qtd de rplies {protocol}: {rply_amnt}, Perc. de reqs {protocol}: {req_perc}, Perc. de rplies {protocol}: {rply_perc}')
     
         
 def get_ARP_statistics():
-    ARP_packets = packets_df[packets_df['Rede'] == 'ARP']
+    ARP_packets = packets_df[packets_df['Enlace'] == 'ARP']
     ARP_req_packets = ARP_packets[ARP_packets['Request_ou_Reply']=='Request']
     ARP_rply_packets = ARP_packets[ARP_packets['Request_ou_Reply']=='Reply']
     ARP_req_amnt = ARP_req_packets.shape[0]
@@ -210,6 +215,7 @@ while True:
         if transporte == ICMPV6:
             protocolo_transporte = 'ICMPv6'
             icmp6_type = int(hexified[108:110],base=16)
+            #print('_________________________', icmp6_type)
             if icmp6_type in ICMPV6_TYPES.keys():
                 ICMPV6_req_or_rply = ICMPV6_TYPES[icmp6_type]
             else:
@@ -232,12 +238,16 @@ while True:
                 aplicacao = 'HTTP'
             elif src_port == HTTPS_PORT or dest_port == HTTPS_PORT:
                 aplicacao = 'HTTPS'
-        packets_df.loc[packets_df.shape[0]] = [enlace, rede, protocolo_transporte, aplicacao, packet_size, dest_port, ICMP_req_or_rply]
+        packets_df.loc[packets_df.shape[0]] = [enlace, rede, protocolo_transporte, aplicacao, packet_size, dest_port, ICMPV6_req_or_rply]
         
     if ethertype == ARP:
+        #print('ARPARPARP')
         ARP_header = arp_header(eth[0])
         rede = 'ARP'
-        packets_df.loc[packets_df.shape[0]] = [rede, '', '', '', packet_size, '', ARP_OPCODES[ARP_header[4]]]
-    
+        opcode = int(binascii.hexlify(eth[0][21:22]).decode('utf-8'), base=16)
+        print('-------------------------------------', opcode)
+
+        packets_df.loc[packets_df.shape[0]] = [rede, '', '', '', packet_size, '', ARP_OPCODES[opcode]]
+
     if packets_df.shape[0]%PRINT_EVERY_N_PACKETS==0:
         display_curr_stats()
